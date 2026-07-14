@@ -7,6 +7,8 @@ import {
   migrate,
   importBundle,
   restoreBackup,
+  listExtensions,
+  openExtensionsIn,
   OpError,
 } from "./ops.ts";
 
@@ -30,16 +32,16 @@ async function cmdDoctor() {
   const rows = await doctor();
   if (rows.length === 0) return console.log("No supported browsers found.");
   for (const r of rows) {
-    const bm = r.bookmarks ?? "-", h = r.history ?? "-", t = r.tabs ?? "-";
-    console.log(`  ${r.id.padEnd(8)} bookmarks:${String(bm).padStart(5)}  history:${String(h).padStart(7)}  tabs:${String(t).padStart(4)}` + (r.error ? `  (${r.error})` : ""));
+    const bm = r.bookmarks ?? "-", h = r.history ?? "-", t = r.tabs ?? "-", x = r.extensions ?? "-";
+    console.log(`  ${r.id.padEnd(8)} bookmarks:${String(bm).padStart(5)}  history:${String(h).padStart(7)}  tabs:${String(t).padStart(4)}  ext:${String(x).padStart(3)}` + (r.error ? `  (${r.error})` : ""));
   }
 }
 
 async function cmdExport(fromId: string, outDir: string) {
   const r = await exportProfile(fromId, outDir);
   console.log(`Exported ${r.source} → ${r.outDir}`);
-  console.log(`  ${r.bookmarks} bookmarks, ${r.history} history rows, ${r.tabs} tabs`);
-  console.log(`  bookmarks.html imports into any browser; tabs.html reopens tabs.`);
+  console.log(`  ${r.bookmarks} bookmarks, ${r.history} history rows, ${r.tabs} tabs, ${r.extensions} extensions`);
+  console.log(`  bookmarks.html imports into any browser; tabs.html + extensions.html reopen by clicking.`);
   if (r.skipped.length) console.log(`  skipped (unreadable): ${r.skipped.join(", ")}`);
 }
 
@@ -59,6 +61,20 @@ async function cmdImport(dir: string, toId: string, dryRun: boolean) {
   console.log(`Wrote ${r.bookmarks} bookmarks into ${r.dest}.  Undo: browser-migrate restore "${r.backupDir}"`);
 }
 
+async function cmdExtensions(fromId: string, openIn: string | undefined) {
+  if (!openIn) {
+    const rows = await listExtensions(fromId);
+    console.log(`${rows.length} extension(s) in ${fromId}:`);
+    for (const r of rows) console.log(`  ${r.enabled ? "●" : "○"} ${r.name}\n      ${r.storeUrl}`);
+    console.log(`\nReinstall in another browser: extensions ${fromId} --open <browser>`);
+    return;
+  }
+  const r = await openExtensionsIn(fromId, openIn);
+  console.log(`Opening ${r.opened} store page(s) in ${r.dest}. Click Install on each.`);
+  if (r.engineMismatch)
+    console.log(`Note: ${fromId} and ${r.dest} use different extension stores — these links are the source's store; find the equivalent add-on in ${r.dest}'s store.`);
+}
+
 function cmdRestore(dir: string) {
   const files = restoreBackup(dir);
   console.log(`Restored ${files.length} file(s):`);
@@ -75,6 +91,8 @@ Usage:
   browser-migrate migrate --from <a> --to <b>   copy bookmarks a → b  [--dry-run]
   browser-migrate import --in <dir> --to <b>    import a bundle → b   [--dry-run]
   browser-migrate restore <backupDir>           undo a write
+  browser-migrate extensions <browser>          list installed extensions + store links
+  browser-migrate extensions <a> --open <b>     open a's extension store pages in b
 
 Writes are always backed up first and refuse to run while the dest browser is open.
 Backups live in ${backupRoot()}.
@@ -116,6 +134,10 @@ try {
     case "restore":
       if (f.pos.length < 1) fail("usage: restore <backupDir>");
       cmdRestore(f.pos[0]);
+      break;
+    case "extensions":
+      if (f.pos.length < 1) fail("usage: extensions <browser> [--open <destBrowser>]");
+      await cmdExtensions(f.pos[0], f.opt.open);
       break;
     case undefined:
     case "-h":

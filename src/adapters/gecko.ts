@@ -18,6 +18,7 @@ import {
   epochToUnixMs,
 } from "../core/intermediate.ts";
 import { decodeMozLz4 } from "../core/mozlz4.ts";
+import { firefoxExtensions } from "../core/extensions.ts";
 
 // Firefox-family (Gecko). Bookmarks + history both live in places.sqlite.
 // Zen is Firefox-based: same schema, different base dir.
@@ -175,6 +176,17 @@ function readTabs(profileDir: string): TabRow[] {
   return tabs;
 }
 
+/** Read installed extensions from the profile's extensions.json (best-effort). */
+function readExtensions(profileDir: string) {
+  const path = join(profileDir, "extensions.json");
+  if (!existsSync(path)) return [];
+  try {
+    return firefoxExtensions(JSON.parse(readFileSync(path, "utf8")));
+  } catch {
+    return [];
+  }
+}
+
 function gecko(id: string, label: string, relBase: string, processName: string): Adapter {
   const base = join(homedir(), "Library", "Application Support", relBase);
   return {
@@ -198,7 +210,7 @@ function gecko(id: string, label: string, relBase: string, processName: string):
       try {
         const bookmarks = readBookmarks(db);
         const history = readHistory(db);
-        return { bookmarks, history, tabs: readTabs(dir) };
+        return { bookmarks, history, tabs: readTabs(dir), extensions: readExtensions(dir) };
       } catch (e) {
         throw new AdapterDataError("history", `places.sqlite read failed: ${e}`, e);
       } finally {

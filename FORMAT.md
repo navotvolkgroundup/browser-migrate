@@ -29,6 +29,8 @@ A bundle is a directory (portable across machines):
 | `history.json` | visited URLs with normalized timestamps |
 | `tabs.json` | currently-open tabs (where the source supports it) |
 | `tabs.html` | tabs as a clickable links page (reopen by clicking) |
+| `extensions.json` | installed extensions as a reinstall list |
+| `extensions.html` | extensions as store links (click each to reinstall) |
 
 Passwords never appear in a bundle: they would be plaintext on disk, and the
 Keychain is machine-bound. Password migration stays native CSV, same-machine.
@@ -57,6 +59,13 @@ type BookmarkNode =
 ```ts
 { url: string; title: string }
 ```
+
+`extensions.json` — array of:
+```ts
+{ id: string; name: string; storeUrl: string; enabled: boolean }
+```
+Extensions are a reinstall list, not installable data — install is a user click
+in the destination browser's store (browsers block silent install).
 
 ## Time
 

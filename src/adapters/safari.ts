@@ -124,6 +124,7 @@ export const SAFARI_ADAPTERS: Adapter[] = [
         bookmarks: readBookmarks(base),
         history: readHistory(base),
         tabs: readTabs(base),
+        extensions: [], // Safari extensions are App Store apps — different model.
       };
     },
   },

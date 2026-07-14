@@ -24,10 +24,18 @@ export interface TabRow {
   title: string;
 }
 
+export interface ExtensionRow {
+  id: string;
+  name: string;
+  storeUrl: string; // store page to reinstall from (install requires a user click)
+  enabled: boolean;
+}
+
 export interface Intermediate {
   bookmarks: BookmarkNode[]; // top-level roots flattened into one list
   history: HistoryRow[];
   tabs: TabRow[]; // currently-open tabs (flat; window grouping not modeled yet)
+  extensions: ExtensionRow[]; // installed extensions as a reinstall list (not installable data)
   // passwords come via native CSV, never in the bundle.
 }
 
@@ -35,7 +43,7 @@ export interface Manifest {
   version: number;
   source: string; // browser id the bundle came from
   createdMs: number;
-  counts: { bookmarks: number; history: number; tabs: number };
+  counts: { bookmarks: number; history: number; tabs: number; extensions: number };
 }
 
 // --- epoch conversion (the single most bug-prone field) -------------------

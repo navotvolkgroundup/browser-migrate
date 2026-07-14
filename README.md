@@ -24,7 +24,15 @@ browser-migrate export <browser> <outDir>      # export a profile to a portable 
 browser-migrate migrate --from <a> --to <b>    # copy bookmarks a → b   [--dry-run]
 browser-migrate import  --in <dir>  --to <b>   # import a bundle → b    [--dry-run]
 browser-migrate restore <backupDir>            # undo a write
+browser-migrate extensions <browser>           # list installed extensions + store links
+browser-migrate extensions <a> --open <b>      # open a's extension store pages in b
 ```
+
+**Extensions** can't be migrated as data (they're installed programs; state is keyed
+to per-browser IDs, and browsers block silent install). `browser-migrate` reads the
+installed list and gives store links — `extensions <a> --open <b>` opens each store
+page in the destination browser so you just click Install. Same-engine reuses the
+store ID; cross-engine is a name match (different store).
 
 **Two migration paths:**
 1. **Portable / universal** — `export` writes a bundle (`manifest.json`,

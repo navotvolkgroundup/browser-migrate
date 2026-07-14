@@ -8,6 +8,7 @@ import {
   AdapterDataError,
 } from "../core/adapter.ts";
 import { writeBookmarks } from "./chromium-write.ts";
+import { chromiumExtensions } from "../core/extensions.ts";
 import {
   type BookmarkNode,
   type HistoryRow,
@@ -48,6 +49,7 @@ function chromium(id: string, label: string, relDir: string, processName: string
         bookmarks: readBookmarks(dir),
         history: readHistory(dir),
         tabs: [],
+        extensions: readExtensions(dir),
       };
     },
     writableFiles(dir: string) {
@@ -120,6 +122,24 @@ function readHistory(dir: string): HistoryRow[] {
     }
   } catch (e) {
     throw new AdapterDataError("history", `failed to read History: ${e}`, e);
+  }
+}
+
+function readExtensions(dir: string) {
+  const load = (name: string) => {
+    const p = join(dir, name);
+    if (!existsSync(p)) return {};
+    try {
+      return JSON.parse(readFileSync(p, "utf8"));
+    } catch {
+      return {};
+    }
+  };
+  // Extensions are best-effort: never abort a migration if this fails.
+  try {
+    return chromiumExtensions(load("Preferences"), load("Secure Preferences"));
+  } catch {
+    return [];
   }
 }
 

@@ -13,6 +13,7 @@ import {
   countBookmarks,
 } from "./core/intermediate.ts";
 import { toNetscapeHtml, tabsToHtml } from "./core/netscape.ts";
+import { extensionsToHtml } from "./core/extensions.ts";
 import { loadBundle, BundleVersionError } from "./core/bundle.ts";
 import { backup, restore } from "./core/backup.ts";
 import { isRunning } from "./core/guard.ts";
@@ -47,6 +48,7 @@ export interface DoctorRow {
   bookmarks: number | null;
   history: number | null;
   tabs: number | null;
+  extensions: number | null;
   error?: string;
 }
 
@@ -55,12 +57,13 @@ export async function doctor(): Promise<DoctorRow[]> {
   for (const a of ADAPTERS) {
     const dir = a.profileDir();
     if (!dir) continue;
-    const row: DoctorRow = { id: a.id, label: a.label, bookmarks: null, history: null, tabs: null };
+    const row: DoctorRow = { id: a.id, label: a.label, bookmarks: null, history: null, tabs: null, extensions: null };
     try {
       const data = await a.read(dir);
       row.bookmarks = countBookmarks(data.bookmarks);
       row.history = data.history.length;
       row.tabs = data.tabs.length;
+      row.extensions = data.extensions.length;
     } catch (e) {
       if (e instanceof AdapterDataError) row.error = `${e.dataType}: ${e.message}`;
       else throw e;
@@ -76,6 +79,7 @@ export interface ExportResult {
   bookmarks: number;
   history: number;
   tabs: number;
+  extensions: number;
   skipped: string[];
 }
 
@@ -85,7 +89,7 @@ export async function exportProfile(fromId: string, outDir: string): Promise<Exp
   const dir = a.profileDir();
   if (!dir) throw new OpError(`${a.label} not installed / no profile found`);
 
-  let data: Intermediate = { bookmarks: [], history: [], tabs: [] };
+  let data: Intermediate = { bookmarks: [], history: [], tabs: [], extensions: [] };
   const skipped: string[] = [];
   try {
     data = await a.read(dir);
@@ -103,6 +107,7 @@ export async function exportProfile(fromId: string, outDir: string): Promise<Exp
       bookmarks: countBookmarks(data.bookmarks),
       history: data.history.length,
       tabs: data.tabs.length,
+      extensions: data.extensions.length,
     },
   };
   writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
@@ -111,6 +116,8 @@ export async function exportProfile(fromId: string, outDir: string): Promise<Exp
   writeFileSync(join(outDir, "history.json"), JSON.stringify(data.history, null, 2));
   writeFileSync(join(outDir, "tabs.json"), JSON.stringify(data.tabs, null, 2));
   writeFileSync(join(outDir, "tabs.html"), tabsToHtml(data.tabs));
+  writeFileSync(join(outDir, "extensions.json"), JSON.stringify(data.extensions, null, 2));
+  writeFileSync(join(outDir, "extensions.html"), extensionsToHtml(data.extensions));
 
   return {
     source: a.id,
@@ -118,6 +125,7 @@ export async function exportProfile(fromId: string, outDir: string): Promise<Exp
     bookmarks: manifest.counts.bookmarks,
     history: manifest.counts.history,
     tabs: manifest.counts.tabs,
+    extensions: manifest.counts.extensions,
     skipped,
   };
 }
@@ -177,10 +185,44 @@ export async function importBundle(bundleDir: string, toId: string, dryRun: bool
     if (e instanceof BundleVersionError) throw new OpError(e.message);
     throw e;
   }
-  const w = await writeInto(to, { bookmarks: loaded.bookmarks, history: [], tabs: [] }, dryRun);
+  const w = await writeInto(to, { bookmarks: loaded.bookmarks, history: [], tabs: [], extensions: [] }, dryRun);
   return { ...w, source: loaded.manifest.source, version: loaded.manifest.version };
 }
 
 export function restoreBackup(dir: string): string[] {
   return restore(dir);
+}
+
+async function readOne(id: string, who: string) {
+  const a = byId(id);
+  if (!a) throw new OpError(`unknown ${who} browser: ${id}`);
+  const dir = a.profileDir();
+  if (!dir) throw new OpError(`${a.label} not installed`);
+  return { adapter: a, data: await a.read(dir) };
+}
+
+export async function listExtensions(fromId: string) {
+  const { data } = await readOne(fromId, "source");
+  return data.extensions;
+}
+
+export interface OpenExtResult {
+  dest: string;
+  opened: number;
+  engineMismatch: boolean;
+}
+
+/** Open each source extension's store page in the destination browser, so the
+ *  user clicks Install on each. Silent install is not possible — browsers
+ *  block it. Cross-engine (e.g. Chrome→Firefox) is a name-match, not reusable
+ *  store IDs, so we flag the mismatch. */
+export async function openExtensionsIn(fromId: string, destId: string): Promise<OpenExtResult> {
+  const { adapter: from, data } = await readOne(fromId, "source");
+  const to = byId(destId);
+  if (!to) throw new OpError(`unknown dest browser: ${destId}`);
+  const app = to.processName ?? to.label;
+  for (const ext of data.extensions) {
+    Bun.spawnSync(["open", "-a", app, ext.storeUrl]); // opens the store page in `to`
+  }
+  return { dest: to.id, opened: data.extensions.length, engineMismatch: from.engine !== to.engine };
 }
