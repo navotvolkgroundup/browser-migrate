@@ -80,9 +80,9 @@ async function cmdExtensions(fromId: string, openIn: string | undefined) {
     return;
   }
   const r = await openExtensionsIn(fromId, openIn);
-  console.log(`Opening ${r.opened} store page(s) in ${r.dest}. Click Install on each.`);
+  console.log(`Opening ${r.opened} store page(s) in ${r.dest}. Click Install/Add on each.`);
   if (r.engineMismatch)
-    console.log(`Note: ${fromId} and ${r.dest} use different extension stores — these links are the source's store; find the equivalent add-on in ${r.dest}'s store.`);
+    console.log(`Note: ${fromId} and ${r.dest} use different extension stores, so these are ${r.dest}-store searches by name — pick the matching add-on (some may not exist there).`);
 }
 
 function cmdPasswords(inPath: string, toId: string, outPath: string) {
