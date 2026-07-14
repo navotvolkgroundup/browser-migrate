@@ -106,9 +106,10 @@ source profile ─(adapter.read)─▶ Intermediate ─(export)─▶ bundle + b
   `places.sqlite` / Safari plists is risky and unverifiable without writing into
   a live browser; these stay read/export-only until the write can be verified.
 
-Known ceiling (M2): the `Local State` MAC strip is the pragmatic approach; Chrome's
-exact reset behavior is version-dependent, which is why every write is backed up.
-Live-Chrome acceptance across versions is a manual spike. The checksum is verified.
+Write path is verified end-to-end on a live Chromium browser (Dia): a written
+bookmark survives a quit/relaunch and Dia re-signs the file rather than resetting
+it. Chrome's exact behavior can still vary by version, which is why every write is
+backed up and undoable with `restore`.
 
 Passwords ride native CSV export/import (never reimplement browser crypto) and
 are excluded from bundles by default.
