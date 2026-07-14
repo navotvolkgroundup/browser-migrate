@@ -19,17 +19,23 @@ export interface HistoryRow {
   visitCount: number;
 }
 
+export interface TabRow {
+  url: string;
+  title: string;
+}
+
 export interface Intermediate {
   bookmarks: BookmarkNode[]; // top-level roots flattened into one list
   history: HistoryRow[];
-  // tabs/passwords come in later milestones; adapters declare what they support.
+  tabs: TabRow[]; // currently-open tabs (flat; window grouping not modeled yet)
+  // passwords come via native CSV, never in the bundle.
 }
 
 export interface Manifest {
   version: number;
   source: string; // browser id the bundle came from
   createdMs: number;
-  counts: { bookmarks: number; history: number };
+  counts: { bookmarks: number; history: number; tabs: number };
 }
 
 // --- epoch conversion (the single most bug-prone field) -------------------

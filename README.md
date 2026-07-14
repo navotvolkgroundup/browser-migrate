@@ -4,11 +4,17 @@ Move your browser profile (bookmarks, history, tabs) between browsers. macOS, CL
 
 You test a lot of browsers — Chrome, Arc, Dia, Comet, Helium, Firefox, Zen, Safari — and switching means leaving your browsing life behind in the old one. This moves it.
 
-## Status: M3 (Chromium + Firefox/Zen, read + export + direct write)
+## Status: M4 (Chromium + Firefox/Zen + Safari; bookmarks, history, tabs)
 
-Supported: Chrome, Dia, Brave, Edge (Chromium) and Firefox, Zen (Gecko) for
-reading bookmarks + history. Direct bookmark write currently lands in Chromium
-targets; Gecko is read/export-only (write is a later milestone).
+Supported for **read/export**: Chrome, Dia, Brave, Edge (Chromium); Firefox, Zen
+(Gecko); Safari (WebKit). Data types: bookmarks + history everywhere; tabs from
+Gecko (mozLz4 sessions) and Safari. Direct bookmark **write** currently targets
+Chromium; other engines are read/export-only (write is future work).
+
+Safari reads require **Full Disk Access** (grant it to your terminal in System
+Settings → Privacy & Security). Without it, `doctor` says so instead of failing.
+
+The bundle format is documented in [FORMAT.md](FORMAT.md).
 
 
 ```
@@ -71,7 +77,8 @@ source profile ─(adapter.read)─▶ Intermediate ─(export)─▶ bundle + b
   the three engine time formats get normalized).
 - `src/core/adapter.ts` — `Adapter` interface + `capabilities` matrix.
 - `src/adapters/chromium.ts` — Chrome/Dia/Brave/Edge (shared Chromium layout).
-- `src/adapters/gecko.ts` — Firefox/Zen (`places.sqlite`, profiles.ini resolution).
+- `src/adapters/gecko.ts` — Firefox/Zen (`places.sqlite`, profiles.ini, mozLz4 tabs).
+- `src/adapters/safari.ts` — Safari (plist via `plutil`, History.db, FDA-aware).
 
 ## Roadmap
 
@@ -79,14 +86,17 @@ source profile ─(adapter.read)─▶ Intermediate ─(export)─▶ bundle + b
   `Local State` MAC strip, `--dry-run`, `restore`, bundle version policy.
 - **M3 ✓** — Firefox/Zen adapters (`places.sqlite` bookmarks + history, epoch +
   `place:` filtering), cross-machine via portable bundle.
-- **M4** — Safari (source-first, Full Disk Access), Gecko bookmark write, tabs
-  (Firefox `mozLz4` sessionstore + Chromium SNSS), `FORMAT.md`.
+- **M4 ✓** — Safari read (plist bookmarks + Core-Data history, FDA-aware); tabs in
+  the neutral format; Gecko tabs via a hand-rolled `mozLz4` decoder; `FORMAT.md`.
 
-**Deferred, on purpose:**
+**Deferred, on purpose (with reasons):**
 - **Arc** — bookmarks live in an undocumented `StorableSidebar.json`. Not built
   blind; needs a real Arc profile to verify against (wasn't installed here).
-- **Tabs** — the neutral format doesn't model tabs yet; it's its own milestone
-  (Firefox `mozLz4`, Chromium SNSS, Safari session plist all differ).
+- **Chromium open-tab read** — SNSS is an append-only pickled binary format; a
+  real spike. Gecko/Safari tabs work today.
+- **Non-Chromium bookmark write** and **Safari/Gecko write** — writing
+  `places.sqlite` / Safari plists is risky and unverifiable without writing into
+  a live browser; these stay read/export-only until the write can be verified.
 
 Known ceiling (M2): the `Local State` MAC strip is the pragmatic approach; Chrome's
 exact reset behavior is version-dependent, which is why every write is backed up.

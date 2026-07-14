@@ -13,9 +13,11 @@ import { type Adapter, type Capabilities, AdapterDataError } from "../core/adapt
 import {
   type BookmarkNode,
   type HistoryRow,
+  type TabRow,
   type Intermediate,
   epochToUnixMs,
 } from "../core/intermediate.ts";
+import { decodeMozLz4 } from "../core/mozlz4.ts";
 
 // Firefox-family (Gecko). Bookmarks + history both live in places.sqlite.
 // Zen is Firefox-based: same schema, different base dir.
@@ -23,7 +25,7 @@ import {
 // mozLz4) and bookmark WRITE are deferred — places.sqlite writes need FK/
 // moz_origins/GUID handling, a separate task behind backup-before-write.
 
-const CAPS: Capabilities = { bookmarks: "read", history: "read", tabs: "none", passwords: "none" };
+const CAPS: Capabilities = { bookmarks: "read", history: "read", tabs: "read", passwords: "none" };
 
 // Fixed GUIDs of the permanent bookmark roots (stable across Firefox versions).
 const ROOT_GUIDS = ["toolbar_____", "menu________", "unfiled_____", "mobile______"];
@@ -156,6 +158,23 @@ function readHistory(db: Database): HistoryRow[] {
   }));
 }
 
+/** Read currently-open tabs from sessionstore-backups/recovery.jsonlz4. */
+function readTabs(profileDir: string): TabRow[] {
+  const path = join(profileDir, "sessionstore-backups", "recovery.jsonlz4");
+  if (!existsSync(path)) return [];
+  const session = JSON.parse(decodeMozLz4(new Uint8Array(readFileSync(path))));
+  const tabs: TabRow[] = [];
+  for (const win of session.windows ?? []) {
+    for (const tab of win.tabs ?? []) {
+      const entry = tab.entries?.[(tab.index ?? tab.entries?.length) - 1];
+      if (entry?.url && !entry.url.startsWith("about:")) {
+        tabs.push({ url: entry.url, title: entry.title ?? entry.url });
+      }
+    }
+  }
+  return tabs;
+}
+
 function gecko(id: string, label: string, relBase: string, processName: string): Adapter {
   const base = join(homedir(), "Library", "Application Support", relBase);
   return {
@@ -177,7 +196,9 @@ function gecko(id: string, label: string, relBase: string, processName: string):
         throw new AdapterDataError("bookmarks", `cannot open places.sqlite: ${e}`, e);
       }
       try {
-        return { bookmarks: readBookmarks(db), history: readHistory(db) };
+        const bookmarks = readBookmarks(db);
+        const history = readHistory(db);
+        return { bookmarks, history, tabs: readTabs(dir) };
       } catch (e) {
         throw new AdapterDataError("history", `places.sqlite read failed: ${e}`, e);
       } finally {

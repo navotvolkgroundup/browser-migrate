@@ -27,6 +27,17 @@ function render(nodes: BookmarkNode[], indent: string): string {
   return out;
 }
 
+import type { TabRow } from "./intermediate.ts";
+
+/** Open tabs as a plain links page — restore by opening it and clicking, since
+ *  no cross-browser "reopen these tabs" format exists. */
+export function tabsToHtml(tabs: TabRow[]): string {
+  const items = tabs
+    .map((t) => `  <li><a href="${esc(t.url)}">${esc(t.title || t.url)}</a></li>`)
+    .join("\n");
+  return `<!DOCTYPE html>\n<meta charset="utf-8">\n<title>Open tabs</title>\n<h1>Open tabs (${tabs.length})</h1>\n<ul>\n${items}\n</ul>\n`;
+}
+
 export function toNetscapeHtml(bookmarks: BookmarkNode[]): string {
   return (
     `<!DOCTYPE NETSCAPE-Bookmark-file-1>\n` +

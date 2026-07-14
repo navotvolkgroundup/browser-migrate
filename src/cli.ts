@@ -30,16 +30,16 @@ async function cmdDoctor() {
   const rows = await doctor();
   if (rows.length === 0) return console.log("No supported browsers found.");
   for (const r of rows) {
-    const bm = r.bookmarks ?? "-", h = r.history ?? "-";
-    console.log(`  ${r.id.padEnd(8)} bookmarks:${String(bm).padStart(5)}  history:${String(h).padStart(7)}` + (r.error ? `  (${r.error})` : ""));
+    const bm = r.bookmarks ?? "-", h = r.history ?? "-", t = r.tabs ?? "-";
+    console.log(`  ${r.id.padEnd(8)} bookmarks:${String(bm).padStart(5)}  history:${String(h).padStart(7)}  tabs:${String(t).padStart(4)}` + (r.error ? `  (${r.error})` : ""));
   }
 }
 
 async function cmdExport(fromId: string, outDir: string) {
   const r = await exportProfile(fromId, outDir);
   console.log(`Exported ${r.source} → ${r.outDir}`);
-  console.log(`  ${r.bookmarks} bookmarks, ${r.history} history rows`);
-  console.log(`  bookmarks.html is importable by any browser (File → Import Bookmarks).`);
+  console.log(`  ${r.bookmarks} bookmarks, ${r.history} history rows, ${r.tabs} tabs`);
+  console.log(`  bookmarks.html imports into any browser; tabs.html reopens tabs.`);
   if (r.skipped.length) console.log(`  skipped (unreadable): ${r.skipped.join(", ")}`);
 }
 

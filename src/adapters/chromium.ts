@@ -42,9 +42,12 @@ function chromium(id: string, label: string, relDir: string, processName: string
         : null;
     },
     async read(dir: string): Promise<Intermediate> {
+      // ponytail: Chromium open-tab read (SNSS binary session format) deferred —
+      // SNSS is an append-only pickled format, a real spike. tabs:[] for now.
       return {
         bookmarks: readBookmarks(dir),
         history: readHistory(dir),
+        tabs: [],
       };
     },
     writableFiles(dir: string) {

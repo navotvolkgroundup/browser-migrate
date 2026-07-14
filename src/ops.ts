@@ -12,14 +12,15 @@ import {
   type Manifest,
   countBookmarks,
 } from "./core/intermediate.ts";
-import { toNetscapeHtml } from "./core/netscape.ts";
+import { toNetscapeHtml, tabsToHtml } from "./core/netscape.ts";
 import { loadBundle, BundleVersionError } from "./core/bundle.ts";
 import { backup, restore } from "./core/backup.ts";
 import { isRunning } from "./core/guard.ts";
 import { CHROMIUM_ADAPTERS } from "./adapters/chromium.ts";
 import { GECKO_ADAPTERS } from "./adapters/gecko.ts";
+import { SAFARI_ADAPTERS } from "./adapters/safari.ts";
 
-export const ADAPTERS: Adapter[] = [...CHROMIUM_ADAPTERS, ...GECKO_ADAPTERS];
+export const ADAPTERS: Adapter[] = [...CHROMIUM_ADAPTERS, ...GECKO_ADAPTERS, ...SAFARI_ADAPTERS];
 export const byId = (id: string) => ADAPTERS.find((a) => a.id === id);
 
 export class OpError extends Error {}
@@ -45,6 +46,7 @@ export interface DoctorRow {
   label: string;
   bookmarks: number | null;
   history: number | null;
+  tabs: number | null;
   error?: string;
 }
 
@@ -53,11 +55,12 @@ export async function doctor(): Promise<DoctorRow[]> {
   for (const a of ADAPTERS) {
     const dir = a.profileDir();
     if (!dir) continue;
-    const row: DoctorRow = { id: a.id, label: a.label, bookmarks: null, history: null };
+    const row: DoctorRow = { id: a.id, label: a.label, bookmarks: null, history: null, tabs: null };
     try {
       const data = await a.read(dir);
       row.bookmarks = countBookmarks(data.bookmarks);
       row.history = data.history.length;
+      row.tabs = data.tabs.length;
     } catch (e) {
       if (e instanceof AdapterDataError) row.error = `${e.dataType}: ${e.message}`;
       else throw e;
@@ -72,6 +75,7 @@ export interface ExportResult {
   outDir: string;
   bookmarks: number;
   history: number;
+  tabs: number;
   skipped: string[];
 }
 
@@ -81,7 +85,7 @@ export async function exportProfile(fromId: string, outDir: string): Promise<Exp
   const dir = a.profileDir();
   if (!dir) throw new OpError(`${a.label} not installed / no profile found`);
 
-  let data: Intermediate = { bookmarks: [], history: [] };
+  let data: Intermediate = { bookmarks: [], history: [], tabs: [] };
   const skipped: string[] = [];
   try {
     data = await a.read(dir);
@@ -95,18 +99,25 @@ export async function exportProfile(fromId: string, outDir: string): Promise<Exp
     version: FORMAT_VERSION,
     source: a.id,
     createdMs: Date.now(),
-    counts: { bookmarks: countBookmarks(data.bookmarks), history: data.history.length },
+    counts: {
+      bookmarks: countBookmarks(data.bookmarks),
+      history: data.history.length,
+      tabs: data.tabs.length,
+    },
   };
   writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
   writeFileSync(join(outDir, "bookmarks.json"), JSON.stringify(data.bookmarks, null, 2));
   writeFileSync(join(outDir, "bookmarks.html"), toNetscapeHtml(data.bookmarks));
   writeFileSync(join(outDir, "history.json"), JSON.stringify(data.history, null, 2));
+  writeFileSync(join(outDir, "tabs.json"), JSON.stringify(data.tabs, null, 2));
+  writeFileSync(join(outDir, "tabs.html"), tabsToHtml(data.tabs));
 
   return {
     source: a.id,
     outDir,
     bookmarks: manifest.counts.bookmarks,
     history: manifest.counts.history,
+    tabs: manifest.counts.tabs,
     skipped,
   };
 }
@@ -166,7 +177,7 @@ export async function importBundle(bundleDir: string, toId: string, dryRun: bool
     if (e instanceof BundleVersionError) throw new OpError(e.message);
     throw e;
   }
-  const w = await writeInto(to, { bookmarks: loaded.bookmarks, history: [] }, dryRun);
+  const w = await writeInto(to, { bookmarks: loaded.bookmarks, history: [], tabs: [] }, dryRun);
   return { ...w, source: loaded.manifest.source, version: loaded.manifest.version };
 }
 
