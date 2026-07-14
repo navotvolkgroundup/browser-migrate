@@ -1,21 +1,23 @@
 import { expect, test } from "bun:test";
 import { parseArcBookmarks } from "../src/core/arc-sidebar.ts";
 
-// SYNTHETIC fixture based on the documented StorableSidebar shape. NOT a real
-// Arc file — see issue #1. Verifies the parser extracts tab URLs and dedups.
-test("parseArcBookmarks extracts pinned tab URLs from containers", () => {
+// Fixture shape matches a real Arc StorableSidebar (verified): items interleaves
+// id-strings and objects; tab objects carry data.tab.savedURL/savedTitle;
+// itemContainer objects are spaces/folders.
+test("parseArcBookmarks extracts tabs, drops folders/dupes/non-portable schemes", () => {
   const json = {
     sidebar: {
       containers: [
         { global: true },
         {
           items: [
-            "id-string-1",
+            "id-1",
             { id: "a", data: { tab: { savedURL: "https://bun.sh", savedTitle: "Bun" } } },
-            "id-string-2",
-            { id: "b", data: { list: {} } }, // folder, no url -> skipped
+            "id-2",
+            { id: "b", data: { itemContainer: {} } }, // space/folder -> skip
             { id: "c", data: { tab: { savedURL: "https://arc.net", savedTitle: "Arc" } } },
-            { id: "d", data: { tab: { savedURL: "https://bun.sh" } } }, // dup -> skipped
+            { id: "d", data: { tab: { savedURL: "https://bun.sh" } } }, // dup -> skip
+            { id: "e", data: { tab: { savedURL: "chrome-extension://abc/x.html", savedTitle: "Ext" } } }, // skip
           ],
         },
       ],

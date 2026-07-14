@@ -6,9 +6,9 @@ import type { Intermediate } from "../core/intermediate.ts";
 import { parseArcBookmarks } from "../core/arc-sidebar.ts";
 import { readHistory } from "./chromium.ts";
 
-// Arc (Chromium engine, macOS-only). Bookmarks from StorableSidebar.json;
-// history from the standard Chromium History DB under User Data/Default.
-// UNVERIFIED against real Arc — see src/core/arc-sidebar.ts and issue #1.
+// Arc (Chromium engine, macOS-only). Bookmarks from StorableSidebar.json
+// (verified against a real profile); history from the standard Chromium History
+// DB under User Data/Default.
 
 const CAPS: Capabilities = { bookmarks: "read", history: "read", tabs: "none", passwords: "none" };
 const ARC_BASE = join(homedir(), "Library", "Application Support", "Arc");

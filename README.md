@@ -6,10 +6,11 @@ You test a lot of browsers — Chrome, Arc, Dia, Comet, Helium, Firefox, Zen, Sa
 
 ## Status: M4 (Chromium + Firefox/Zen + Safari; bookmarks, history, tabs)
 
-Supported for **read/export**: Chrome, Dia, Brave, Edge (Chromium); Firefox, Zen
-(Gecko); Safari (WebKit). Data types: bookmarks + history everywhere; tabs from
-Gecko (mozLz4 sessions) and Safari. Direct bookmark **write** currently targets
-Chromium; other engines are read/export-only (write is future work).
+Supported for **read/export**: Chrome, Dia, Brave, Edge, **Arc** (Chromium);
+Firefox, Zen (Gecko); Safari (WebKit). Data types: bookmarks + history everywhere;
+open tabs from Chromium (SNSS), Gecko (mozLz4 sessions) and Safari. Direct bookmark
+**write** currently targets Chromium; other engines use the assisted HTML-import
+path.
 
 Safari reads require **Full Disk Access** (grant it to your terminal in System
 Settings → Privacy & Security). Without it, `doctor` says so instead of failing.
@@ -98,13 +99,11 @@ source profile ─(adapter.read)─▶ Intermediate ─(export)─▶ bundle + b
   the neutral format; Gecko tabs via a hand-rolled `mozLz4` decoder; `FORMAT.md`.
 
 **Deferred, on purpose (with reasons):**
-- **Arc** — bookmarks live in an undocumented `StorableSidebar.json`. Not built
-  blind; needs a real Arc profile to verify against (wasn't installed here).
-- **Chromium open-tab read** — SNSS is an append-only pickled binary format; a
-  real spike. Gecko/Safari tabs work today.
-- **Non-Chromium bookmark write** and **Safari/Gecko write** — writing
-  `places.sqlite` / Safari plists is risky and unverifiable without writing into
-  a live browser; these stay read/export-only until the write can be verified.
+- **Non-Chromium bookmark write** — writing `places.sqlite` / Safari plists is
+  risky and version-fragile; the assisted `bookmarks.html` import path covers
+  Firefox/Safari losslessly instead.
+- **Windows/Linux** — Chromium profile paths are resolved per-OS, but only macOS
+  is tested here. Firefox cross-OS layout still TODO (issue #5).
 
 Write path is verified end-to-end on a live Chromium browser (Dia): a written
 bookmark survives a quit/relaunch and Dia re-signs the file rather than resetting
