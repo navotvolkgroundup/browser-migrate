@@ -1,0 +1,20 @@
+{
+  "name": "browser-migrate",
+  "version": "0.1.0",
+  "description": "Migrate your browser profile (bookmarks, history, tabs) between browsers. macOS, CLI.",
+  "type": "module",
+  "bin": {
+    "browser-migrate": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "mcp": "bun run src/mcp.ts",
+    "test": "bun test",
+    "compile": "bun build --compile ./src/cli.ts --outfile browser-migrate"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}
