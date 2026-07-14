@@ -9,6 +9,7 @@ import {
   restoreBackup,
   listExtensions,
   openExtensionsIn,
+  convertPasswords,
   OpError,
 } from "./ops.ts";
 
@@ -45,20 +46,29 @@ async function cmdExport(fromId: string, outDir: string) {
   if (r.skipped.length) console.log(`  skipped (unreadable): ${r.skipped.join(", ")}`);
 }
 
-async function cmdMigrate(fromId: string, toId: string, dryRun: boolean) {
-  const r = await migrate(fromId, toId, dryRun);
-  console.log(`Read ${r.read} bookmarks from ${r.source}.`);
+function reportWrite(r: { dest: string; bookmarks: number; dryRun: boolean; backupDir?: string; assisted?: boolean; bundleDir?: string; importHow?: string }) {
+  if (r.assisted) {
+    if (r.dryRun) return console.log(`[dry-run] ${r.dest} has no direct write; would write bookmarks.html for manual import.`);
+    console.log(`${r.dest} can't be written directly (safe path). Wrote ${r.bookmarks} bookmarks to:`);
+    console.log(`  ${r.bundleDir}/bookmarks.html`);
+    console.log(`Import into ${r.dest}: ${r.importHow}`);
+    return;
+  }
   if (r.dryRun) return console.log(`[dry-run] would write ${r.bookmarks} bookmarks into ${r.dest} (backed up first).`);
   console.log(`Backed up → ${r.backupDir}`);
   console.log(`Wrote ${r.bookmarks} bookmarks into ${r.dest}.  Undo: browser-migrate restore "${r.backupDir}"`);
 }
 
+async function cmdMigrate(fromId: string, toId: string, dryRun: boolean) {
+  const r = await migrate(fromId, toId, dryRun);
+  console.log(`Read ${r.read} bookmarks from ${r.source}.`);
+  reportWrite(r);
+}
+
 async function cmdImport(dir: string, toId: string, dryRun: boolean) {
   const r = await importBundle(dir, toId, dryRun);
   console.log(`Bundle from ${r.source}, format v${r.version}.`);
-  if (r.dryRun) return console.log(`[dry-run] would write ${r.bookmarks} bookmarks into ${r.dest} (backed up first).`);
-  console.log(`Backed up → ${r.backupDir}`);
-  console.log(`Wrote ${r.bookmarks} bookmarks into ${r.dest}.  Undo: browser-migrate restore "${r.backupDir}"`);
+  reportWrite(r);
 }
 
 async function cmdExtensions(fromId: string, openIn: string | undefined) {
@@ -73,6 +83,18 @@ async function cmdExtensions(fromId: string, openIn: string | undefined) {
   console.log(`Opening ${r.opened} store page(s) in ${r.dest}. Click Install on each.`);
   if (r.engineMismatch)
     console.log(`Note: ${fromId} and ${r.dest} use different extension stores — these links are the source's store; find the equivalent add-on in ${r.dest}'s store.`);
+}
+
+function cmdPasswords(inPath: string, toId: string, outPath: string) {
+  const r = convertPasswords(inPath, toId, outPath);
+  console.log(`Converted ${r.count} passwords → ${r.format} format → ${r.outPath}`);
+  console.log(`⚠  ${r.outPath} contains PLAINTEXT passwords. Import it, then delete it.`);
+  const how: Record<string, string> = {
+    chromium: "chrome://password-manager/passwords → Settings → Import",
+    firefox: "about:logins → ⋯ → Import from a File",
+    safari: "File → Import From → Passwords CSV File",
+  };
+  console.log(`Import into ${r.dest}: ${how[r.format]}`);
 }
 
 function cmdRestore(dir: string) {
@@ -93,6 +115,7 @@ Usage:
   browser-migrate restore <backupDir>           undo a write
   browser-migrate extensions <browser>          list installed extensions + store links
   browser-migrate extensions <a> --open <b>     open a's extension store pages in b
+  browser-migrate passwords --in <csv> --to <b> convert an exported password CSV for browser b
 
 Writes are always backed up first and refuse to run while the dest browser is open.
 Backups live in ${backupRoot()}.
@@ -138,6 +161,10 @@ try {
     case "extensions":
       if (f.pos.length < 1) fail("usage: extensions <browser> [--open <destBrowser>]");
       await cmdExtensions(f.pos[0], f.opt.open);
+      break;
+    case "passwords":
+      if (!f.opt.in || !f.opt.to) fail("usage: passwords --in <export.csv> --to <browser> [--out <file.csv>]");
+      cmdPasswords(f.opt.in, f.opt.to, f.opt.out ?? "browser-migrate-passwords.csv");
       break;
     case undefined:
     case "-h":

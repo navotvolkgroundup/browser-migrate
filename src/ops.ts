@@ -17,11 +17,19 @@ import { extensionsToHtml } from "./core/extensions.ts";
 import { loadBundle, BundleVersionError } from "./core/bundle.ts";
 import { backup, restore } from "./core/backup.ts";
 import { isRunning } from "./core/guard.ts";
+import { readFileSync, writeFileSync as writeFile } from "node:fs";
+import { fromCsv, toCsv, type PwFormat } from "./core/passwords.ts";
 import { CHROMIUM_ADAPTERS } from "./adapters/chromium.ts";
 import { GECKO_ADAPTERS } from "./adapters/gecko.ts";
 import { SAFARI_ADAPTERS } from "./adapters/safari.ts";
+import { ARC_ADAPTERS } from "./adapters/arc.ts";
 
-export const ADAPTERS: Adapter[] = [...CHROMIUM_ADAPTERS, ...GECKO_ADAPTERS, ...SAFARI_ADAPTERS];
+export const ADAPTERS: Adapter[] = [
+  ...CHROMIUM_ADAPTERS,
+  ...ARC_ADAPTERS,
+  ...GECKO_ADAPTERS,
+  ...SAFARI_ADAPTERS,
+];
 export const byId = (id: string) => ADAPTERS.find((a) => a.id === id);
 
 export class OpError extends Error {}
@@ -135,13 +143,37 @@ export interface WriteResult {
   bookmarks: number;
   dryRun: boolean;
   backupDir?: string;
+  // Assisted path (engines with no safe direct write): we drop a bookmarks.html
+  // and tell the user the import clicks instead of poking the profile.
+  assisted?: boolean;
+  bundleDir?: string;
+  importHow?: string;
 }
 
+// Native "Import Bookmarks (HTML)" entry points. Direct DB/plist writes for
+// these engines are intentionally NOT shipped — too risky to verify, and the
+// Netscape HTML import is lossless and safe.
+const IMPORT_HOW: Record<string, string> = {
+  firefox: "about:preferences → Import Data / Bookmarks Manager (Ctrl+Shift+O) → Import → Import Bookmarks from HTML",
+  safari: "File → Import From → Bookmarks HTML File",
+  chromium: "Bookmarks Manager → ⋮ → Import bookmarks",
+};
+
 async function writeInto(dest: Adapter, data: Intermediate, dryRun: boolean): Promise<WriteResult> {
-  if (!dest.write || !dest.writableFiles) throw new OpError(`${dest.label} does not support writing`);
+  const n = countBookmarks(data.bookmarks);
+
+  // No safe direct write for this engine → assisted HTML import.
+  if (!dest.write || !dest.writableFiles) {
+    const how = IMPORT_HOW[dest.engine] ?? "your browser's Import Bookmarks (HTML) menu";
+    if (dryRun) return { dest: dest.id, bookmarks: n, dryRun: true, assisted: true, importHow: how };
+    const bundleDir = join(process.cwd(), `browser-migrate-${dest.id}-import`);
+    mkdirSync(bundleDir, { recursive: true });
+    writeFileSync(join(bundleDir, "bookmarks.html"), toNetscapeHtml(data.bookmarks));
+    return { dest: dest.id, bookmarks: n, dryRun: false, assisted: true, bundleDir, importHow: how };
+  }
+
   const dir = dest.profileDir();
   if (!dir) throw new OpError(`${dest.label} not installed / no profile found`);
-  const n = countBookmarks(data.bookmarks);
 
   if (dryRun) return { dest: dest.id, bookmarks: n, dryRun: true };
 
@@ -191,6 +223,32 @@ export async function importBundle(bundleDir: string, toId: string, dryRun: bool
 
 export function restoreBackup(dir: string): string[] {
   return restore(dir);
+}
+
+const ENGINE_TO_PW_FORMAT: Record<string, PwFormat> = {
+  chromium: "chromium",
+  firefox: "firefox",
+  safari: "safari",
+};
+
+export interface PasswordResult {
+  count: number;
+  dest: string;
+  format: PwFormat;
+  outPath: string;
+}
+
+/** Transform a browser-exported password CSV into the destination browser's
+ *  import format. Never touches the browser or its crypto — import is a manual
+ *  step in the browser UI. */
+export function convertPasswords(inPath: string, destId: string, outPath: string): PasswordResult {
+  const to = byId(destId);
+  if (!to) throw new OpError(`unknown dest browser: ${destId}`);
+  const format = ENGINE_TO_PW_FORMAT[to.engine];
+  const records = fromCsv(readFileSync(inPath, "utf8"));
+  if (records.length === 0) throw new OpError(`no password rows found in ${inPath} (is it a browser CSV export?)`);
+  writeFile(outPath, toCsv(records, format));
+  return { count: records.length, dest: to.id, format, outPath };
 }
 
 async function readOne(id: string, who: string) {

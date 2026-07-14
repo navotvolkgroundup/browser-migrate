@@ -1,0 +1,29 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - name: Build binaries (arm64 + x64)
+        run: |
+          bun build --compile --target=bun-darwin-arm64 ./src/cli.ts --outfile browser-migrate-macos-arm64
+          bun build --compile --target=bun-darwin-x64 ./src/cli.ts --outfile browser-migrate-macos-x64
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            browser-migrate-macos-arm64
+            browser-migrate-macos-x64
+          generate_release_notes: true

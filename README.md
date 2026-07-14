@@ -113,6 +113,18 @@ Live-Chrome acceptance across versions is a manual spike. The checksum is verifi
 Passwords ride native CSV export/import (never reimplement browser crypto) and
 are excluded from bundles by default.
 
+## Install
+
+Once a release is tagged (`v*`), CI builds macOS arm64 + x64 binaries and attaches
+them to the GitHub release. A Homebrew formula template lives in `Formula/` — publish
+it to a `homebrew-tap` repo and then:
+
+```
+brew install navotvolkgroundup/tap/browser-migrate
+```
+
+Until then, run from source (below) or grab a release binary directly.
+
 ## Develop
 
 ```
@@ -121,5 +133,8 @@ bun test
 bun run src/cli.ts list
 bun run compile     # single binary → ./browser-migrate
 ```
+
+CI (`.github/workflows/ci.yml`) runs `bun test` on every push/PR. Tagging `vX.Y.Z`
+triggers `release.yml` to build and publish binaries.
 
 MIT.

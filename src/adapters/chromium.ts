@@ -1,7 +1,8 @@
 import { Database } from "bun:sqlite";
 import { existsSync, copyFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { tmpdir, homedir } from "node:os";
+import { tmpdir } from "node:os";
+import { chromiumBase, forOS, type OS } from "../core/os-paths.ts";
 import {
   type Adapter,
   type Capabilities,
@@ -9,6 +10,7 @@ import {
 } from "../core/adapter.ts";
 import { writeBookmarks } from "./chromium-write.ts";
 import { chromiumExtensions } from "../core/extensions.ts";
+import { readChromiumTabs } from "./chromium-sessions.ts";
 import {
   type BookmarkNode,
   type HistoryRow,
@@ -25,12 +27,14 @@ import {
 const CAPS: Capabilities = {
   bookmarks: "both", // read + write (write = M2, behind backup-before-write)
   history: "read",
-  tabs: "none",
+  tabs: "read", // open tabs from SNSS session files (best-effort)
   passwords: "none",
 };
 
-function chromium(id: string, label: string, relDir: string, processName: string): Adapter {
-  const base = join(homedir(), "Library", "Application Support", relDir);
+// Per-OS profile segment under the Chromium base. undefined = not on this OS.
+function chromium(id: string, label: string, seg: Partial<Record<OS, string>>, processName: string): Adapter {
+  const rel = forOS(seg);
+  const base = rel ? join(chromiumBase(), rel) : null;
   return {
     id,
     label,
@@ -38,17 +42,16 @@ function chromium(id: string, label: string, relDir: string, processName: string
     capabilities: CAPS,
     processName,
     profileDir() {
+      if (!base) return null; // browser not available on this OS
       return existsSync(join(base, "Bookmarks")) || existsSync(join(base, "History"))
         ? base
         : null;
     },
     async read(dir: string): Promise<Intermediate> {
-      // ponytail: Chromium open-tab read (SNSS binary session format) deferred —
-      // SNSS is an append-only pickled format, a real spike. tabs:[] for now.
       return {
         bookmarks: readBookmarks(dir),
         history: readHistory(dir),
-        tabs: [],
+        tabs: readChromiumTabs(dir),
         extensions: readExtensions(dir),
       };
     },
@@ -96,7 +99,7 @@ function convert(node: any): BookmarkNode {
   };
 }
 
-function readHistory(dir: string): HistoryRow[] {
+export function readHistory(dir: string): HistoryRow[] {
   const path = join(dir, "History");
   if (!existsSync(path)) return [];
   // Copy out first: Chrome holds a lock on the live DB (WAL). Reading a temp
@@ -144,8 +147,20 @@ function readExtensions(dir: string) {
 }
 
 export const CHROMIUM_ADAPTERS: Adapter[] = [
-  chromium("chrome", "Google Chrome", "Google/Chrome/Default", "Google Chrome"),
-  chromium("dia", "Dia", "Dia/User Data/Default", "Dia"),
-  chromium("brave", "Brave", "BraveSoftware/Brave-Browser/Default", "Brave Browser"),
-  chromium("edge", "Microsoft Edge", "Microsoft Edge/Default", "Microsoft Edge"),
+  chromium("chrome", "Google Chrome", {
+    darwin: "Google/Chrome/Default",
+    win32: "Google/Chrome/User Data/Default",
+    linux: "google-chrome/Default",
+  }, "Google Chrome"),
+  chromium("dia", "Dia", { darwin: "Dia/User Data/Default" }, "Dia"), // macOS-only browser
+  chromium("brave", "Brave", {
+    darwin: "BraveSoftware/Brave-Browser/Default",
+    win32: "BraveSoftware/Brave-Browser/User Data/Default",
+    linux: "BraveSoftware/Brave-Browser/Default",
+  }, "Brave Browser"),
+  chromium("edge", "Microsoft Edge", {
+    darwin: "Microsoft Edge/Default",
+    win32: "Microsoft/Edge/User Data/Default",
+    linux: "microsoft-edge/Default",
+  }, "Microsoft Edge"),
 ];
