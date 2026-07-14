@@ -49,6 +49,15 @@ export function firefoxExtensions(extJson: any): ExtensionRow[] {
   return out;
 }
 
+/** A store-search URL for the destination engine, keyed by extension name.
+ *  Used for cross-engine moves where the source's store ID is meaningless. */
+export function storeSearchUrl(engine: string, name: string): string | null {
+  const q = encodeURIComponent(name);
+  if (engine === "chromium") return `https://chromewebstore.google.com/search/${q}`;
+  if (engine === "firefox") return `https://addons.mozilla.org/firefox/search/?q=${q}`;
+  return null; // safari extensions are App Store apps — no web search flow
+}
+
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

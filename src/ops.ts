@@ -19,6 +19,7 @@ import { backup, restore } from "./core/backup.ts";
 import { isRunning } from "./core/guard.ts";
 import { readFileSync, writeFileSync as writeFile } from "node:fs";
 import { fromCsv, toCsv, type PwFormat } from "./core/passwords.ts";
+import { storeSearchUrl } from "./core/extensions.ts";
 import { CHROMIUM_ADAPTERS } from "./adapters/chromium.ts";
 import { GECKO_ADAPTERS } from "./adapters/gecko.ts";
 import { SAFARI_ADAPTERS } from "./adapters/safari.ts";
@@ -279,8 +280,15 @@ export async function openExtensionsIn(fromId: string, destId: string): Promise<
   const to = byId(destId);
   if (!to) throw new OpError(`unknown dest browser: ${destId}`);
   const app = to.processName ?? to.label;
+  const mismatch = from.engine !== to.engine;
+  let opened = 0;
   for (const ext of data.extensions) {
-    Bun.spawnSync(["open", "-a", app, ext.storeUrl]); // opens the store page in `to`
+    // Same engine: open the exact store page. Cross engine: search the dest's
+    // store by name (the source store ID won't exist there).
+    const url = mismatch ? storeSearchUrl(to.engine, ext.name) : ext.storeUrl;
+    if (!url) continue;
+    Bun.spawnSync(["open", "-a", app, url]);
+    opened++;
   }
-  return { dest: to.id, opened: data.extensions.length, engineMismatch: from.engine !== to.engine };
+  return { dest: to.id, opened, engineMismatch: mismatch };
 }

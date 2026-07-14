@@ -153,6 +153,7 @@ export const CHROMIUM_ADAPTERS: Adapter[] = [
     linux: "google-chrome/Default",
   }, "Google Chrome"),
   chromium("dia", "Dia", { darwin: "Dia/User Data/Default" }, "Dia"), // macOS-only browser
+  chromium("helium", "Helium", { darwin: "net.imput.helium/Default" }, "Helium"),
   chromium("brave", "Brave", {
     darwin: "BraveSoftware/Brave-Browser/Default",
     win32: "BraveSoftware/Brave-Browser/User Data/Default",
