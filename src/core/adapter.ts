@@ -21,6 +21,9 @@ export interface Adapter {
   capabilities: Capabilities;
   /** macOS process name for the running-browser guard (e.g. "Google Chrome"). */
   processName?: string;
+  /** Extension stores this browser installs from directly, even cross-engine.
+   *  Orion (WebKit) installs both Chrome Web Store and Firefox add-ons. */
+  extensionCompat?: ("chrome" | "firefox")[];
   /** Absolute profile dir, or null if the browser isn't installed. */
   profileDir(): string | null;
   /** Read the profile into the neutral format. Per-type failures throw

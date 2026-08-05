@@ -24,12 +24,14 @@ import { CHROMIUM_ADAPTERS } from "./adapters/chromium.ts";
 import { GECKO_ADAPTERS } from "./adapters/gecko.ts";
 import { SAFARI_ADAPTERS } from "./adapters/safari.ts";
 import { ARC_ADAPTERS } from "./adapters/arc.ts";
+import { ORION_ADAPTERS } from "./adapters/orion.ts";
 
 export const ADAPTERS: Adapter[] = [
   ...CHROMIUM_ADAPTERS,
   ...ARC_ADAPTERS,
   ...GECKO_ADAPTERS,
   ...SAFARI_ADAPTERS,
+  ...ORION_ADAPTERS,
 ];
 export const byId = (id: string) => ADAPTERS.find((a) => a.id === id);
 
@@ -280,15 +282,19 @@ export async function openExtensionsIn(fromId: string, destId: string): Promise<
   const to = byId(destId);
   if (!to) throw new OpError(`unknown dest browser: ${destId}`);
   const app = to.processName ?? to.label;
-  const mismatch = from.engine !== to.engine;
+  // Source's store family; whether the dest installs from it directly.
+  const sourceStore = from.engine === "chromium" ? "chrome" : from.engine === "firefox" ? "firefox" : null;
+  const directInstall =
+    from.engine === to.engine || (!!sourceStore && !!to.extensionCompat?.includes(sourceStore));
   let opened = 0;
   for (const ext of data.extensions) {
-    // Same engine: open the exact store page. Cross engine: search the dest's
+    // Direct install: open the exact store page (same engine, or a dest like
+    // Orion that installs the source's store). Otherwise: search the dest's
     // store by name (the source store ID won't exist there).
-    const url = mismatch ? storeSearchUrl(to.engine, ext.name) : ext.storeUrl;
+    const url = directInstall ? ext.storeUrl : storeSearchUrl(to.engine, ext.name);
     if (!url) continue;
     Bun.spawnSync(["open", "-a", app, url]);
     opened++;
   }
-  return { dest: to.id, opened, engineMismatch: mismatch };
+  return { dest: to.id, opened, engineMismatch: !directInstall };
 }
