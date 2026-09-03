@@ -13,5 +13,16 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun test
+      # Safari adapter tests shell out to plutil (macOS-only); they run in
+      # the macos-safari job below and in release.yml before any build.
+      - run: bun test $(ls test/*.test.ts | grep -v safari)
 
+  macos-safari:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test test/safari.test.ts
