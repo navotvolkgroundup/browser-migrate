@@ -4,6 +4,12 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  # One active run per ref: pushing to a branch cancels its stale run
+  # instead of letting superseded runs burn minutes (macOS bills at 10x).
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
